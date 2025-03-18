@@ -64,8 +64,25 @@ class BrowserSettings(BaseModel):
     )
 
 
+class SandboxSettings(BaseModel):
+    """Configuration for the execution sandbox"""
+
+    use_sandbox: bool = Field(False, description="Whether to use the sandbox")
+    image: str = Field("python:3.12-slim", description="Base image")
+    work_dir: str = Field("/workspace", description="Container working directory")
+    memory_limit: str = Field("512m", description="Memory limit")
+    cpu_limit: float = Field(1.0, description="CPU limit")
+    timeout: int = Field(300, description="Default command timeout (seconds)")
+    network_enabled: bool = Field(
+        False, description="Whether network access is allowed"
+    )
+
+
 class AppConfig(BaseModel):
     llm: Dict[str, LLMSettings]
+    sandbox: Optional[SandboxSettings] = Field(
+        None, description="Sandbox configuration"
+    )
     browser_config: Optional[BrowserSettings] = Field(
         None, description="Browser configuration"
     )
@@ -168,6 +185,11 @@ class Config:
         search_settings = None
         if search_config:
             search_settings = SearchSettings(**search_config)
+        sandbox_config = raw_config.get("sandbox", {})
+        if sandbox_config:
+            sandbox_settings = SandboxSettings(**sandbox_config)
+        else:
+            sandbox_settings = SandboxSettings()
 
         config_dict = {
             "llm": {
@@ -177,6 +199,7 @@ class Config:
                     for name, override_config in llm_overrides.items()
                 },
             },
+            "sandbox": sandbox_settings,
             "browser_config": browser_settings,
             "search_config": search_settings,
         }
@@ -186,6 +209,10 @@ class Config:
     @property
     def llm(self) -> Dict[str, LLMSettings]:
         return self._config.llm
+
+    @property
+    def sandbox(self) -> SandboxSettings:
+        return self._config.sandbox
 
     @property
     def browser_config(self) -> Optional[BrowserSettings]:
