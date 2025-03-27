@@ -1,0 +1,21 @@
+[
+    {
+        "server_id": "server1",
+        "connection_type": "stdio",
+        "command": "python",
+        "args": [
+            "-m",
+            "app.mcp.server"
+        ]
+    },
+    {
+        "server_id": "server2",
+        "connection_type": "sse",
+        "server_url": "http://127.0.0.1:8001/sse"
+    },
+    {
+        "server_id": "remote_server",
+        "connection_type": "sse",
+        "server_url": "https://example.com/mcp/sse"
+    }
+]
