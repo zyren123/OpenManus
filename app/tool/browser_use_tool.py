@@ -30,6 +30,10 @@ Key capabilities include:
 * Content extraction: Extract and analyze content from web pages based on specific goals
 * Tab management: Switch between tabs, open new tabs, or close tabs
 
+Special features:
+* For 'web_search' action: Use 'open_browser: true' when you need to actually open a browser and visit the search result
+* For 'web_search' action: Use 'open_browser: false' (default) when you only need search results without opening a browser
+
 Note: When using element indices, refer to the numbered elements shown in the current browser state.
 """
 
@@ -87,6 +91,11 @@ class BrowserUseTool(BaseTool, Generic[Context]):
             "query": {
                 "type": "string",
                 "description": "Search query for 'web_search' action",
+            },
+            "open_browser": {
+                "type": "boolean",
+                "description": "Whether to open the browser for 'web_search' action, if false only returns search results",
+                "default": False,
             },
             "goal": {
                 "type": "string",
@@ -196,6 +205,7 @@ class BrowserUseTool(BaseTool, Generic[Context]):
         scroll_amount: Optional[int] = None,
         tab_id: Optional[int] = None,
         query: Optional[str] = None,
+        open_browser: Optional[bool] = None,
         goal: Optional[str] = None,
         keys: Optional[str] = None,
         seconds: Optional[int] = None,
@@ -212,6 +222,7 @@ class BrowserUseTool(BaseTool, Generic[Context]):
             scroll_amount: Pixels to scroll for scroll action
             tab_id: Tab ID for switch_tab action
             query: Search query for Google search
+            open_browser: Whether to open the browser for 'web_search' action, if false only returns search results
             goal: Extraction goal for content extraction
             keys: Keys to send for keyboard actions
             seconds: Seconds to wait
@@ -222,7 +233,8 @@ class BrowserUseTool(BaseTool, Generic[Context]):
         """
         async with self.lock:
             try:
-                context = await self._ensure_browser_initialized()
+                if action != "web_search" or (open_browser and action == "web_search"):
+                    context = await self._ensure_browser_initialized()
 
                 # Get max content length from config
                 max_content_length = getattr(
@@ -257,13 +269,22 @@ class BrowserUseTool(BaseTool, Generic[Context]):
                     search_response = await self.web_search_tool.execute(
                         query=query, fetch_content=True, num_results=1
                     )
-                    # Navigate to the first search result
-                    first_search_result = search_response.results[0]
-                    url_to_navigate = first_search_result.url
 
-                    page = await context.get_current_page()
-                    await page.goto(url_to_navigate)
-                    await page.wait_for_load_state()
+                    # If open_browser is True, open the browser and navigate to the first search result
+                    if open_browser and search_response.results:
+                        first_search_result = search_response.results[0]
+                        url_to_navigate = first_search_result.url
+
+                        # Initialize the browser and navigate
+                        context = await self._ensure_browser_initialized()
+                        page = await context.get_current_page()
+                        await page.goto(url_to_navigate)
+                        await page.wait_for_load_state()
+
+                        # Add browser navigation information to the search result
+                        search_response.output += (
+                            f"\n\nBrowser opened and navigated to: {url_to_navigate}"
+                        )
 
                     return search_response
 
